@@ -1,0 +1,97 @@
+[
+  {
+    "id": "http-demo-local",
+    "name": "HTTP connector demo (local)",
+    "type": "http",
+    "endpoint": "http://localhost:11434/v1/chat/completions",
+    "method": "POST",
+    "headers": { "Content-Type": "application/json" },
+    "body": {
+      "model": "qwen2.5:0.5b",
+      "temperature": 0,
+      "max_tokens": 64,
+      "messages": [
+        { "role": "system", "content": "{{system}}" },
+        { "role": "user", "content": "{{prompt}}" }
+      ]
+    },
+    "response_path": "choices.0.message.content"
+  },
+
+  {
+    "id": "dvla-lab",
+    "name": "Damn Vulnerable LLM Agent lab (local REST wrapper, port 8200)",
+    "note": "The app owns its system prompt, so {{system}} is not sent.",
+    "type": "http",
+    "endpoint": "http://127.0.0.1:8200/api/chat",
+    "method": "POST",
+    "headers": { "Content-Type": "application/json" },
+    "body": { "message": "{{prompt}}" },
+    "response_path": "reply"
+  },
+
+  {
+    "id": "gateway-openai",
+    "name": "Remote gateway (OpenAI-compatible, from .env)",
+    "note": "Base URL + bearer key + model id from .env (BEDROCK_BASE_URL ending in /v1/, BEDROCK_API_KEY, BEDROCK_MODEL_ID).",
+    "type": "http",
+    "endpoint": "{{env:BEDROCK_BASE_URL}}chat/completions",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer {{env:BEDROCK_API_KEY}}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "model": "{{env:BEDROCK_MODEL_ID}}",
+      "temperature": 0,
+      "max_tokens": 512,
+      "messages": [
+        { "role": "system", "content": "{{system}}" },
+        { "role": "user", "content": "{{prompt}}" }
+      ]
+    },
+    "response_path": "choices.0.message.content"
+  },
+
+  {
+    "id": "bedrock-converse",
+    "name": "AWS Bedrock Converse (fill in key + model)",
+    "note": "Reaches Claude/Nova. Values come from .env (BEDROCK_*). Verify Converse schema against AWS docs.",
+    "type": "http",
+    "endpoint": "https://bedrock-runtime.{{env:BEDROCK_REGION}}.amazonaws.com/model/{{env:BEDROCK_MODEL_ID}}/converse",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer {{env:BEDROCK_API_KEY}}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "system": [ { "text": "{{system}}" } ],
+      "messages": [ { "role": "user", "content": [ { "text": "{{prompt}}" } ] } ],
+      "inferenceConfig": { "maxTokens": 64, "temperature": 0 }
+    },
+    "response_path": "output.message.content.0.text"
+  },
+
+  {
+    "id": "bedrock-openai",
+    "name": "AWS Bedrock OpenAI-compatible (fill in key + model)",
+    "note": "Simplest path; may serve open-weight models only (not Claude/Nova). Values come from .env (BEDROCK_*).",
+    "type": "http",
+    "endpoint": "https://bedrock-runtime.{{env:BEDROCK_REGION}}.amazonaws.com/openai/v1/chat/completions",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer {{env:BEDROCK_API_KEY}}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "model": "{{env:BEDROCK_MODEL_ID}}",
+      "temperature": 0,
+      "max_tokens": 64,
+      "messages": [
+        { "role": "system", "content": "{{system}}" },
+        { "role": "user", "content": "{{prompt}}" }
+      ]
+    },
+    "response_path": "choices.0.message.content"
+  }
+]

@@ -1,0 +1,11 @@
+# Secrets, never commit
+.env
+
+# Generated scan output
+scan-results.json
+static-scan-results.json
+__pycache__/
+.venv-garak/
+.claude/
+data-leak/.scan-*.log
+data-leak/.toollog-offset
