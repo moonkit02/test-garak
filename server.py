@@ -7,7 +7,7 @@ Static tab: lint system prompts with static-scan.py, no endpoint touched.
 The HAR is parsed in memory and never stored. The password or token goes to the scan process
 by env var only. ponytail: stdlib http.server, page served inline, jobs kept in memory.
 """
-import json, os, re, signal, subprocess, sys, time, importlib.util
+import json, os, re, signal, subprocess, sys, time, importlib.util, urllib.error
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -65,6 +65,7 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
   --mono:'JetBrains Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
  }
  *{box-sizing:border-box} html{-webkit-text-size-adjust:100%}
+ [hidden]{display:none!important}
  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 var(--sans);
   background-image:radial-gradient(900px 500px at 80% -10%,#15213f 0,transparent 60%);min-height:100vh}
  .wrap{max-width:920px;margin:0 auto;padding:40px 20px 80px}
@@ -208,12 +209,17 @@ byId('probes').value='__PROBES__';
 
 async function loadConfigs(pick){
  const d=await (await fetch('/api/configs')).json();
+ NEEDS=Object.fromEntries(d.configs.map(c=>[c.id,c.needs_secret]));
  byId('src').innerHTML='<option value="__har">Upload a HAR file</option>'+
-  d.configs.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  d.configs.map(c=>`<option value="${esc(c.id)}">${esc(c.id)}</option>`).join('');
  if(pick)byId('src').value=pick;
  srcChange();
 }
-function srcChange(){byId('harbox').hidden=byId('src').value!=='__har';}
+let NEEDS={};
+function srcChange(){
+ const v=byId('src').value; byId('harbox').hidden=v!=='__har';
+ byId('secret').placeholder=v==='__har'||NEEDS[v]?'required: test account password or token':'not needed for this config';
+}
 async function post(url,body){
  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  const d=await r.json(); if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status)); return d;
@@ -317,7 +323,8 @@ class H(BaseHTTPRequestHandler):
         if u.path in ("/", "/index.html"):
             return self._send(200, PAGE, "text/html; charset=utf-8")
         if u.path == "/api/configs":
-            return self._send(200, {"configs": list(configs())})
+            return self._send(200, {"configs": [{"id": cid, "needs_secret": "{{env:AI_SCAN_" in p.read_text()}
+                                                for cid, p in configs().items()]})
         if u.path == "/api/job":
             j = JOBS.get((parse_qs(u.query).get("id") or [""])[0])
             if not j:
@@ -351,7 +358,14 @@ class H(BaseHTTPRequestHandler):
 
     def test(self, body):
         path, cfg = load_cfg(body.get("config"), body.get("secret"))
-        headers = aiscan.dls.get_auth_headers(cfg)
+        try:
+            headers = aiscan.dls.get_auth_headers(cfg)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                who = cfg.get("tester", {}).get("username") or "the test account"
+                hint = "the password or token field is empty" if not body.get("secret") else "check the password or token"
+                raise ValueError(f"login as {who} was refused (HTTP {e.code}): {hint}")
+            raise
         chat_path = next(iter(cfg["chat_paths"].values()))
         raw = json.loads(path.read_text())
         if not cfg.get("reply_path"):  # HAR had no response body: learn it from one live reply
