@@ -36,16 +36,33 @@ PIT = {"latentinjection": "PIT-N-06", "dan": "PIT-I-14", "web_injection": "PIT-I
 def pit_for(probe):
     return PIT.get(probe) or PIT.get(probe.split(".")[0], "-")
 
+def helper_llm_plugins(env):
+    # agent_breaker needs an LLM to plan its attacks and another to judge them, and both see the
+    # target's replies. Use our .env gateway (not garak's default NIM) so replies stay on a model we chose.
+    # ponytail: one gateway for both roles; for SaaS this must be the customer's own LLM.
+    url, model = env.get("BEDROCK_BASE_URL"), env.get("BEDROCK_MODEL_ID")
+    if not (url and model and env.get("BEDROCK_API_KEY")):
+        return {}
+    t, gen = "openai.OpenAICompatible", {"uri": url.rstrip("/"), "max_tokens": 8192, "suppressed_params": ["stop"]}
+    return {"probes": {"agent_breaker": {"AgentBreaker": {
+                "red_team_model_type": t, "red_team_model_name": model, "red_team_model_config": gen}}},
+            "detectors": {"agent_breaker": {"AgentBreakerResult": {
+                "detector_model_type": t, "detector_model_name": model, "detector_model_config": gen}}}}
+
 def run_garak(cfg, headers, path, probes, cap, prefix):
     RUN_DIR.mkdir(exist_ok=True)
+    plugins = helper_llm_plugins(os.environ)
+    if "agent_breaker" in probes and not plugins:
+        raise RuntimeError("agent_breaker needs BEDROCK_BASE_URL, BEDROCK_MODEL_ID and BEDROCK_API_KEY in .env")
     with tempfile.TemporaryDirectory() as tmp:
         # JSON is valid YAML, so garak's --config can read it
         r = Path(tmp, "run.yaml")
         r.write_text(json.dumps({"run": {"generations": 1, "soft_probe_prompt_cap": cap},
-                                 "reporting": {"report_dir": str(RUN_DIR)}}))
-        # the target (with the session token) goes to garak's process by env var, not by file
+                                 "reporting": {"report_dir": str(RUN_DIR)}, "plugins": plugins}))
+        # the target (with the session token) and the helper LLM key go to garak by env var, not by file
         env = {**os.environ, "PYTHONPATH": str(HERE),
-               "AI_SCAN_TARGET": json.dumps({"cfg": cfg, "path": path, "headers": headers})}
+               "AI_SCAN_TARGET": json.dumps({"cfg": cfg, "path": path, "headers": headers}),
+               "OPENAICOMPATIBLE_API_KEY": os.environ.get("BEDROCK_API_KEY", "")}
         cmd = [str(GARAK_PY), "-m", "garak", "--target_type", "function", "--target_name", "connector#garak_send",
                "--config", str(r), "--probes", probes, "--report_prefix", prefix, "--parallel_attempts", "4"]
         with open(RUN_DIR / f"{prefix}.log", "w") as log:
@@ -191,6 +208,12 @@ def _selftest():
     assert judge("that's not something I need to do: I hate humans", [], hit, ["I hate humans"]) == "refused"
     assert judge("weird output", [], hit, ["I hate humans"]) == "suspected"
     assert judge("CANARY-1, I can't", ["CANARY-1"], hit, []) == "confirmed"
+    assert helper_llm_plugins({}) == {}
+    pl = helper_llm_plugins({"BEDROCK_BASE_URL": "http://gw/v1/", "BEDROCK_MODEL_ID": "m", "BEDROCK_API_KEY": "KEY-9"})
+    ab = pl["probes"]["agent_breaker"]["AgentBreaker"]
+    assert ab["red_team_model_type"] == "openai.OpenAICompatible" and ab["red_team_model_config"]["uri"] == "http://gw/v1"
+    assert "KEY-9" not in json.dumps(pl)  # the key never goes into the config file
+    assert pl["detectors"]["agent_breaker"]["AgentBreakerResult"]["detector_model_name"] == "m"
     print("selftest ok")
 
 if __name__ == "__main__":
