@@ -1,3 +1,0 @@
-DAN jailbreak prompts in dan/ are vendored verbatim from NVIDIA garak
-(https://github.com/NVIDIA/garak), garak/data/dan/, Apache-2.0.
-Community-crafted jailbreaks; used here as a red-team attack corpus.

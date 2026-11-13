@@ -11,11 +11,15 @@ LLM02 sensitive-info disclosure, jailbreak.
 
 | File | What it is |
 |---|---|
-| `scan.py` | **Dynamic** scan. `probe -> generate -> detector -> report`. Hits an OpenAI-compatible `/v1` endpoint (a live model). Writes `scan-results.json`. |
-| `static-scan.py` | **Static** scan. Lints prompt text (no endpoint needed) for baked-in secrets and weak guardrails. Scans `targets.json` prompts + any files passed as args. Writes `static-scan-results.json`. |
-| `targets.json` | The **targets under test**: deliberately weak system prompts (bank support, HR/PII, DevOps creds, legal). Each has a canary `secret` + `marker` = the ground truth (must never leak). Add more by appending entries. |
-| `connectors.json` | **Remote targets**: generic HTTP connectors (request template + response path) to reach any custom model API. The shipped example hits local Ollama via the generic path. |
-| `server.py` | Local web UI (dark/OLED, JetBrains Mono), two tabs: **Dynamic** (model + target dropdowns, live probing, saves `scan-results.json`) and **Static** (paste a prompt or lint all targets, saves `static-scan-results.json`). Reuses `scan.py` and `static-scan.py`. |
+| `ai-scan.py` | **Main entry.** One target config runs our data-leak checks and garak, then re-judges every garak output into confirmed / likely / suspected / refused. `--from-har` builds a config from a browser HAR; `--rejudge` re-applies the rules to old garak reports. |
+| `connector.py` | One `send(prompt)` for every endpoint shape (http-json, SSE). Our checks and garak (through its `function` generator) both call it. Also builds configs from HAR files, keeping structure only. |
+| `data-leak/data-leak-scan.py` | Cross-account data access and tool-enumeration checks. Needs a second test account. |
+| `data-leak/bank-bot.py` | Local vulnerable target (`--fixed` = patched). Has JSON, guarded, SSE endpoints and a chat page for HAR export. |
+| `server.py` | Local web UI on :8099. **App scan** tab: upload a HAR or pick a config, test the connection, run `ai-scan.py` with live progress and a stop button. **Static** tab: prompt lint. |
+| `scan.py` | Shared helpers (`_fill`, `_dig`, `.env` loader, `REFUSALS`) plus 5 canary-based system-prompt secret probes for a raw model (`targets.json`, `connectors.json`). Injection, DAN and encoding probes moved to garak. |
+| `static-scan.py` | **Static** scan. Lints prompt text (no endpoint needed) for baked-in secrets and weak guardrails. Writes `static-scan-results.json`. |
+| `targets.json` | Raw-model targets for `scan.py`: weak system prompts with a canary `secret` + `marker`. |
+| `connectors.json` | HTTP connectors for `scan.py` to reach a raw model API. |
 | `scan-results.json` | Last scan output (generated). |
 | `knowledge/artifacts.md` | Log of published claude.ai artifacts (field guide, attack playbook) with URLs, for future reference. |
 
