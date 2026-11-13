@@ -9,3 +9,5 @@ __pycache__/
 .claude/
 data-leak/.scan-*.log
 data-leak/.toollog-offset
+garak-runs/
+ai-scan-*.json

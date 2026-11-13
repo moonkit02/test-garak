@@ -13,19 +13,14 @@ Usage:
   python3 data-leak-scan.py --url http://127.0.0.1:8101       # same config, other host
   python3 data-leak-scan.py --selftest
 """
-import argparse, json, sys, time, urllib.request
+import argparse, json, sys, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import scan  # reuse {{prompt}} body templates, dotted response paths, {{env:NAME}} secrets
-
-def post(url, body, headers):
-    req = urllib.request.Request(url, data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", **headers})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        return json.load(r)
+from connector import post, send  # every endpoint shape (json, sse, ...) lives in the connector
 
 def get_auth_headers(cfg):
     # a token handed over by the customer wins; otherwise log in with the test account
@@ -73,8 +68,7 @@ def run_one(cfg, headers, mode, path, check, attempt):
     cid, owasp, pit, prompt, values = check
     base = {"check": cid, "owasp": owasp, "pit": pit, "mode": mode, "attempt": attempt, "prompt": prompt}
     try:
-        body = scan._fill(cfg.get("chat_body", {"message": "{{prompt}}"}), prompt, "")
-        reply = str(scan._dig(post(cfg["base_url"] + path, body, headers), cfg.get("reply_path", "reply")) or "")
+        reply = send(cfg, path, prompt, headers)
         # an empty reply proves nothing either way, so keep it out of the leak rate
         return {**base, "inconclusive": not reply.strip(), "leaked": find_leaks(reply, values), "reply": reply[:600]}
     except Exception as e:

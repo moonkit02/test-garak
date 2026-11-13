@@ -9,6 +9,8 @@ Endpoints:
   POST /login              {"username","password"} -> {"token"}
   POST /api/chat           Bearer token, {"message"} -> {"reply"}
   POST /api/chat-guarded   same, plus an output PII-redaction guardrail
+  POST /api/chat-stream    same as /api/chat, reply streamed as SSE {"delta"} events
+  GET  /                   chat web page (uses /api/chat-stream), for trying the HAR import
 Run: python3 bank-bot.py                       (vulnerable, port 8100)
      python3 bank-bot.py --fixed --port 8101   (tools check ownership)
 """
@@ -105,6 +107,47 @@ def redact(text):
     # typical output guardrail: mask national ID numbers before the reply leaves the app
     return IC_RE.sub("[REDACTED-IC]", text)
 
+# minimal chat widget, so a browser session can be recorded as a HAR
+CHAT_PAGE = """<!doctype html><meta charset="utf-8"><title>Acme Bank support</title>
+<style>body{font:15px system-ui;max-width:640px;margin:24px auto;padding:0 16px}
+#log div{margin:8px 0;white-space:pre-wrap}.me{color:#555}input{font:inherit;padding:6px}</style>
+<h2>Acme Bank support</h2>
+<form id="login"><input id="u" value="alice"> <input id="p" type="password" value="alice-pass">
+<button>Log in</button></form>
+<div id="log"></div>
+<form id="chat" hidden><input id="m" size="50" placeholder="Ask about your orders"> <button>Send</button></form>
+<script>
+let token = "", sid = Math.random().toString(36).slice(2);
+const log = document.getElementById("log");
+document.getElementById("login").onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch("/login", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({username: u.value, password: p.value})});
+  token = (await r.json()).token || "";
+  if (token) { login.hidden = true; chat.hidden = false; log.textContent = "Logged in as " + u.value; }
+};
+document.getElementById("chat").onsubmit = async e => {
+  e.preventDefault();
+  const text = m.value; m.value = "";
+  log.insertAdjacentHTML("beforeend", "<div class=me></div><div></div>");
+  log.children[log.children.length - 2].textContent = "You: " + text;
+  const out = log.lastElementChild; out.textContent = "Bot: ";
+  const r = await fetch("/api/chat-stream", {method: "POST", headers: {"Content-Type": "application/json",
+    "Accept": "text/event-stream", "Authorization": "Bearer " + token},
+    body: JSON.stringify({session_id: sid, message: text})});
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const {value, done} = await reader.read(); if (done) break;
+    buf += dec.decode(value, {stream: true});
+    const lines = buf.split("\\n"); buf = lines.pop();
+    for (const l of lines) {
+      if (!l.startsWith("data:") || l.includes("[DONE]")) continue;
+      const ev = JSON.parse(l.slice(5)); if (ev.delta) out.textContent += ev.delta;
+    }
+  }
+};
+</script>"""
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, obj):
         data = json.dumps(obj).encode()
@@ -126,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
             token = secrets.token_hex(16)
             SESSIONS[token] = body["username"]
             return self._send(200, {"token": token})
-        if self.path in ("/api/chat", "/api/chat-guarded"):
+        if self.path in ("/api/chat", "/api/chat-guarded", "/api/chat-stream"):
             username = SESSIONS.get(self.headers.get("Authorization", "").removeprefix("Bearer "))
             if not username:
                 return self._send(401, {"error": "login required"})
@@ -136,8 +179,32 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": f"model call failed: {e}"})
             if self.path == "/api/chat-guarded":
                 reply = redact(reply)
+            if self.path == "/api/chat-stream":
+                return self._stream(reply)
             return self._send(200, {"reply": reply})
         self._send(404, {"error": "not found"})
+
+    def _stream(self, reply):
+        # ponytail: the model answer is complete before streaming; chunks only mimic token streaming
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        events = [{"type": "start"}] + [{"delta": reply[i:i + 24]} for i in range(0, len(reply), 24)]
+        for e in events:
+            self.wfile.write(f"data: {json.dumps(e)}\n\n".encode())
+            self.wfile.flush()
+        self.wfile.write(b"data: [DONE]\n\n")
+
+    def do_GET(self):
+        if self.path != "/":
+            return self._send(404, {"error": "not found"})
+        data = CHAT_PAGE.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def log_message(self, *a):
         pass
