@@ -186,8 +186,8 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
      <option value=0>Data access quick check (no attack prompts)</option></select></label>
     <label class=sel for=probes id=probesbox>Attack probes (garak)<select id=probes>
      <option value="__PROBES__">Prompt injection (default)</option>
-     <option value="agent_breaker">Agent tool misuse (agent_breaker, uses the .env LLM)</option>
-     <option value="__PROBES__,agent_breaker">Both</option></select></label>
+     <option value="agent_breaker.AgentBreaker">Agent tool misuse (agent_breaker, uses the .env LLM)</option>
+     <option value="__PROBES__,agent_breaker.AgentBreaker">Both</option></select></label>
     <label class=sel for=cap id=capbox>Prompts / probe<input id=cap type=number value=5 min=1 max=50></label>
     <label class=sel for=repeats>Repeats<input id=repeats type=number value=20 min=1 max=30></label>
    </div>

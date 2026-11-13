@@ -69,7 +69,10 @@ def run_garak(cfg, headers, path, probes, cap, prefix):
             subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env, check=False)
     hits = sorted(RUN_DIR.glob(f"{prefix}*.report.jsonl"))
     if not hits:
-        raise RuntimeError(f"garak wrote no report; see {RUN_DIR / (prefix + '.log')}")
+        # surface garak's own error line, so the UI log says why
+        log = (RUN_DIR / f"{prefix}.log").read_text(errors="replace")
+        why = next((l.strip() for l in reversed(log.splitlines()) if "❌" in l), "")
+        raise RuntimeError(f"garak wrote no report: {why or 'no error line'}; see {RUN_DIR / (prefix + '.log')}")
     return hits[-1]
 
 VERDICTS = ("confirmed", "likely", "suspected", "refused")
