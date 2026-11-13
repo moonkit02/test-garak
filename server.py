@@ -172,9 +172,11 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
 
   <div class=panel>
    <div class=controls>
-    <label class=sel for=garak>garak<select id=garak><option value=1>on</option><option value=0>off</option></select></label>
-    <label class=sel for=probes>garak probes<input id=probes></label>
-    <label class=sel for=cap>Prompts / probe<input id=cap type=number value=5 min=1 max=50></label>
+    <label class=sel for=garak>Scan type<select id=garak onchange=modeChange()>
+     <option value=1>Full scan: data access + attack prompts</option>
+     <option value=0>Data access quick check (no attack prompts)</option></select></label>
+    <label class=sel for=probes id=probesbox>Attack probes (garak)<input id=probes></label>
+    <label class=sel for=cap id=capbox>Prompts / probe<input id=cap type=number value=5 min=1 max=50></label>
     <label class=sel for=repeats>Repeats<input id=repeats type=number value=20 min=1 max=30></label>
    </div>
    <p class=hint style="flex-basis:100%;margin:0">Repeats apply to each data-leak check. With 0 leaks in N requests,
@@ -220,6 +222,8 @@ async function loadConfigs(pick){
  srcChange();
 }
 let NEEDS={};
+// quick check = our cross-account and tool-name checks only, so the garak fields do not apply
+function modeChange(){const q=byId('garak').value==='0'; byId('probesbox').hidden=q; byId('capbox').hidden=q;}
 function srcChange(){
  const v=byId('src').value; byId('harbox').hidden=v!=='__har';
  byId('secret').placeholder=v==='__har'||NEEDS[v]?'required: test account password or token':'not needed for this config';
