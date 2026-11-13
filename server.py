@@ -90,6 +90,8 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
   transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
  .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px #22c55e40}
  .btn:disabled{opacity:.55;cursor:wait}
+ .btn{white-space:nowrap}
+ .stat .n.word{font-size:1rem;color:var(--fg-muted)!important;line-height:1.7rem}
  .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--border-hi)}
  .btn.ghost:hover:not(:disabled){box-shadow:none;border-color:var(--fail);color:#fca5a5}
  .btn svg{width:16px;height:16px}
@@ -286,7 +288,9 @@ function render(r,out){
   `<div class=attack>${esc(x.prompt)}</div><pre class="resp show">${esc(x.output)}</pre></div>`).join('');
  res.innerHTML=html; byId('saved').textContent='report: '+out;
 }
-function stat(k,n,l){return `<div class="stat ${k}"><div class=n>${n}</div><div class=l>${l}</div></div>`;}
+// a word like "not tested" is not a result, so it gets neutral styling instead of the red/amber number style
+function stat(k,n,l){const w=!/^[\d\/-]+$/.test(String(n));
+ return `<div class="stat ${k}"><div class="n${w?' word':''}">${n}</div><div class=l>${l}</div></div>`;}
 function showTab(w){
  byId('tab-app').classList.toggle('on',w=='app');byId('tab-stat').classList.toggle('on',w=='stat');
  byId('view-app').hidden=w!='app';byId('view-stat').hidden=w!='stat';
