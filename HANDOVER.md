@@ -108,7 +108,7 @@ python3 ai-scan.py --selftest; python3 connector.py; python3 data-leak/data-leak
 ## 6. Known weaknesses
 
 1. **Agent-type holes are missed.** DVLA needs ReAct-format injection (Arcanum PIT-T-53 tool-call spoofing, PIT-T-70 parameter smuggling). Our checks score 0/30 there.
-2. **Pooled leak rate.** The 95% range is pooled over all authz checks in a mode. Per-check rates differ a lot (32% vs 0%).
+2. **Per-check ranges are wide.** Each check now has its own 95% range, but with repeats 20 one check has about 20 requests, so a clean check only proves "under about 14%". The pooled range is tighter but hides which check leaks.
 3. **Empty replies.** About 1 per run, always in latentinjection, from the model itself (no connector error, no 502). Cause not found.
 4. **Refusal check is keywords.** A reply that complies and also says "I can't" is put in `refused`.
 5. **Endpoint shapes not supported yet:** WebSocket, polling, cookie session + CSRF, token refresh, session bootstrap (a `session_id` from the HAR is reused as is).

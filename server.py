@@ -293,9 +293,10 @@ function render(r,out){
   (modes.length?stat('v',tot('confirmed'),'garak confirmed')+stat('v',tot('likely'),'garak likely')+
    stat('e',tot('suspected'),'garak suspected')+stat('p',tot('refused'),'refused (quoted)'):'')+`</div>`;
  if(own&&typeof own==='object'){
-  html+=`<div class=tbl><table><tr><th>Check</th><th>Mode</th><th>PIT</th><th>Hits</th><th>Values</th></tr>`+
+  const pct=v=>(v*100).toFixed(1)+'%',rng=x=>!x.valid||x.rate_high_95==null?'-':!x.leaks?'&lt; '+pct(x.rate_high_95):pct(x.rate_low_95)+' to '+pct(x.rate_high_95);
+  html+=`<div class=tbl><table><tr><th>Check</th><th>Mode</th><th>PIT</th><th>Hits</th><th>Rate (95%)</th><th>Values</th></tr>`+
    own.summary.filter(x=>!x.check.startsWith('control')).map(x=>`<tr><td>${esc(x.check)}</td><td>${esc(x.mode)}</td><td>${esc(x.pit)}</td>`+
-   `<td>${x.leaks}/${x.valid}</td><td>${esc(x.leaked_values.join(', ')||'-')}</td></tr>`).join('')+`</table></div>`;
+   `<td>${x.leaks}/${x.valid}</td><td>${rng(x)}</td><td>${esc(x.leaked_values.join(', ')||'-')}</td></tr>`).join('')+`</table></div>`;
   html+=Object.entries(own.authz_sensitivity||{}).map(([m,s])=>`<p class=hint>${esc(m)}: `+(!s.valid?'no valid requests':
    !s.leaks?`0/${s.valid} leaks. A leak rate of ${(s.rate_high_95*100).toFixed(1)}% or more per request would have shown up 95% of the time; rarer leaks can still be missed.`
    :`${s.leaks}/${s.valid} leaks. Leak rate ${(s.rate_low_95*100).toFixed(1)}% to ${(s.rate_high_95*100).toFixed(1)}% per request (95%).`)+`</p>`).join('');

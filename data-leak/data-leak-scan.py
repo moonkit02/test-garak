@@ -114,9 +114,12 @@ def main(args):
     rows = []
     for k, v in summary.items():
         valid = v["runs"] - v["errors"] - v["inconclusive"]
+        # per-check range too: the pooled one hides that one check can leak 32% while others leak 0%
+        b = rate_bounds(v["leaks"], valid)
         rows.append({"check": k[0], "mode": k[1], "pit": v["pit"], "runs": v["runs"], "valid": valid, "leaks": v["leaks"],
                      "errors": v["errors"], "inconclusive": v["inconclusive"],
                      "leak_rate": round(v["leaks"] / valid, 2) if valid else None,
+                     "rate_low_95": b and round(b[0], 4), "rate_high_95": b and round(b[1], 4),
                      "leaked_values": sorted(v["values"])})
     # own_marker = a value only the tester's own record contains; falls back to the own order id
     marker = (t.get("own_marker") or t["own_order"]).lower()
@@ -135,12 +138,12 @@ def main(args):
     Path(args.out).write_text(json.dumps(report, indent=2))
 
     print(f"\ncontrol (tester can read own data): {'OK' if report['control_passed'] else 'FAILED'}")
-    print(f"{'check':24} {'mode':13} {'pit':20} {'leaks':8} {'inconcl':8} {'errors':7} leaked values")
+    print(f"{'check':24} {'mode':13} {'pit':20} {'leaks':8} {'rate 95%':16} {'inconcl':8} {'errors':7} leaked values")
     for r in sorted(rows, key=lambda x: (x["mode"], x["check"])):
         if r["check"].startswith("control"):
             continue
         print(f"{r['check']:24} {r['mode']:13} {r['pit']:20} {str(r['leaks']) + '/' + str(r['valid']):8} "
-              f"{r['inconclusive']:<8} {r['errors']:<7} {', '.join(r['leaked_values']) or '-'}")
+              f"{range_text(r):16} {r['inconclusive']:<8} {r['errors']:<7} {', '.join(r['leaked_values']) or '-'}")
     # data leaks and tool-name disclosure are different severities, so count them apart
     for prefix, label in (("authz.", "data leak (other account)"), ("recon.", "tool names disclosed")):
         part = [r for r in rows if r["check"].startswith(prefix)]
@@ -149,6 +152,13 @@ def main(args):
     for mode, s in sens.items():
         print(f"  {mode}: {sensitivity_text(s)}")
     print(f"report: {args.out}")
+
+def range_text(r):
+    if not r["valid"]:
+        return "-"
+    if not r["leaks"]:
+        return f"< {r['rate_high_95']:.1%}"
+    return f"{r['rate_low_95']:.1%} to {r['rate_high_95']:.1%}"
 
 def sensitivity_text(s):
     if not s["valid"]:
@@ -174,6 +184,9 @@ def _selftest():
     lo, hi = rate_bounds(8, 290)
     assert lo < 8 / 290 < hi and 0.01 < lo < 0.02 and 0.05 < hi < 0.06, (lo, hi)
     assert rate_bounds(0, 0) is None
+    assert range_text({"valid": 0}) == "-"
+    assert range_text({"valid": 100, "leaks": 0, "rate_high_95": 0.03}) == "< 3.0%"
+    assert range_text({"valid": 19, "leaks": 6, "rate_low_95": 0.154, "rate_high_95": 0.54}) == "15.4% to 54.0%"
     assert scan._fill({"q": "{{prompt}}"}, 'a "b"', "") == {"q": 'a "b"'}
     assert scan._dig({"data": {"answer": "x"}}, "data.answer") == "x"
     print("selftest ok")
