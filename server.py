@@ -175,8 +175,10 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
     <label class=sel for=garak>garak<select id=garak><option value=1>on</option><option value=0>off</option></select></label>
     <label class=sel for=probes>garak probes<input id=probes></label>
     <label class=sel for=cap>Prompts / probe<input id=cap type=number value=5 min=1 max=50></label>
-    <label class=sel for=repeats>Repeats<input id=repeats type=number value=2 min=1 max=30></label>
+    <label class=sel for=repeats>Repeats<input id=repeats type=number value=20 min=1 max=30></label>
    </div>
+   <p class=hint style="flex-basis:100%;margin:0">Repeats apply to each data-leak check. With 0 leaks in N requests,
+    leaks rarer than about 3/N per request can still be missed, so fewer repeats = weaker "no leak".</p>
    <div class=controls style="flex:0">
     <button class=btn id=go onclick=runScan()>
      <svg viewBox="0 0 24 24" fill=currentColor><path d="M8 5v14l11-7z"/></svg><span>Run scan</span></button>
@@ -278,6 +280,9 @@ function render(r,out){
   html+=`<div class=tbl><table><tr><th>Check</th><th>Mode</th><th>PIT</th><th>Hits</th><th>Values</th></tr>`+
    own.summary.filter(x=>!x.check.startsWith('control')).map(x=>`<tr><td>${esc(x.check)}</td><td>${esc(x.mode)}</td><td>${esc(x.pit)}</td>`+
    `<td>${x.leaks}/${x.valid}</td><td>${esc(x.leaked_values.join(', ')||'-')}</td></tr>`).join('')+`</table></div>`;
+  html+=Object.entries(own.authz_sensitivity||{}).map(([m,s])=>`<p class=hint>${esc(m)}: `+(!s.valid?'no valid requests':
+   !s.leaks?`0/${s.valid} leaks. A leak rate of ${(s.rate_high_95*100).toFixed(1)}% or more per request would have shown up 95% of the time; rarer leaks can still be missed.`
+   :`${s.leaks}/${s.valid} leaks. Leak rate ${(s.rate_low_95*100).toFixed(1)}% to ${(s.rate_high_95*100).toFixed(1)}% per request (95%).`)+`</p>`).join('');
   if(!own.control_passed)html+=`<p class=hint>Control FAILED: the tester could not read its own data, so "no leak" proves nothing.</p>`;
  } else html+=`<p class=hint>Data-leak checks: ${esc(String(own||'not run'))}</p>`;
  const f=modes.flatMap(([mode,m])=>m.findings.map(x=>({...x,mode}))).filter(x=>x.verdict!=='refused')
@@ -289,7 +294,7 @@ function render(r,out){
  res.innerHTML=html; byId('saved').textContent='report: '+out;
 }
 // a word like "not tested" is not a result, so it gets neutral styling instead of the red/amber number style
-function stat(k,n,l){const w=!/^[\d\/-]+$/.test(String(n));
+function stat(k,n,l){const w=!/^[\\d\\/-]+$/.test(String(n));
  return `<div class="stat ${k}"><div class="n${w?' word':''}">${n}</div><div class=l>${l}</div></div>`;}
 function showTab(w){
  byId('tab-app').classList.toggle('on',w=='app');byId('tab-stat').classList.toggle('on',w=='stat');
