@@ -100,6 +100,11 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
  .sel select,.sel input{font:500 .85rem var(--mono);color:var(--fg);background:var(--muted);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;min-height:44px;text-transform:none;letter-spacing:0}
  .sel select{cursor:pointer;max-width:340px}
+ .seg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:44px}
+ .seg label{display:flex;align-items:center;gap:8px;padding:0 14px;font:500 .85rem var(--sans);color:var(--fg-muted);
+  text-transform:none;letter-spacing:0;cursor:pointer}
+ .seg label:has(input:checked){background:var(--muted);color:var(--fg)}
+ .seg input{accent-color:var(--accent);margin:0}
  .sel input[type=number]{width:90px}
  .sel input#probes{width:320px;max-width:100%}
  .sel input[type=file]{padding:8px}
@@ -161,8 +166,13 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
  <div id=view-app>
   <div class=panel>
    <div class=controls>
-    <label class=sel for=src>Target<select id=src onchange=srcChange()></select></label>
+    <div class=sel role=radiogroup aria-label=Target>Target
+     <div class=seg>
+      <label><input type=radio name=tmode id=tm-new onchange=srcChange()>New target from HAR</label>
+      <label><input type=radio name=tmode id=tm-saved checked onchange=srcChange()>Saved target</label>
+     </div></div>
     <label class=sel for=harfile id=harbox>HAR file<input id=harfile type=file accept=".har,application/json"></label>
+    <label class=sel for=src id=srcbox>Saved target<select id=src onchange=srcChange()></select></label>
     <label class=sel for=secret>Test account password or token<input id=secret type=password autocomplete=off placeholder="if the config needs one"></label>
    </div>
    <button class=btn id=tbtn onclick=testConn()>Test connection</button>
@@ -216,24 +226,26 @@ byId('probes').value='__PROBES__';
 async function loadConfigs(pick){
  const d=await (await fetch('/api/configs')).json();
  NEEDS=Object.fromEntries(d.configs.map(c=>[c.id,c.needs_secret]));
- byId('src').innerHTML='<option value="__har">Upload a HAR file</option>'+
-  d.configs.map(c=>`<option value="${esc(c.id)}">${esc(c.id)}</option>`).join('');
- if(pick)byId('src').value=pick;
+ byId('src').innerHTML=d.configs.map(c=>`<option value="${esc(c.id)}">${esc(c.id)}</option>`).join('');
+ // after a HAR upload, switch to the target it just created; with nothing saved yet, start on "new"
+ if(pick){byId('src').value=pick; byId('tm-saved').checked=true;}
+ else if(!d.configs.length)byId('tm-new').checked=true;
  srcChange();
 }
 let NEEDS={};
+function isNew(){return byId('tm-new').checked;}
 // quick check = our cross-account and tool-name checks only, so the garak fields do not apply
 function modeChange(){const q=byId('garak').value==='0'; byId('probesbox').hidden=q; byId('capbox').hidden=q;}
 function srcChange(){
- const v=byId('src').value; byId('harbox').hidden=v!=='__har';
- byId('secret').placeholder=v==='__har'||NEEDS[v]?'required: test account password or token':'not needed for this config';
+ const n=isNew(); byId('harbox').hidden=!n; byId('srcbox').hidden=n;
+ byId('secret').placeholder=n||NEEDS[byId('src').value]?'required: test account password or token':'not needed for this target';
 }
 async function post(url,body){
  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  const d=await r.json(); if(!r.ok||d.error)throw new Error(d.error||('HTTP '+r.status)); return d;
 }
 async function ensureConfig(){
- if(byId('src').value!=='__har')return byId('src').value;
+ if(!isNew())return byId('src').value;
  const f=byId('harfile').files[0]; if(!f)throw new Error('choose a HAR file first');
  let har; try{har=JSON.parse(await f.text());}catch(e){throw new Error('this file is not valid HAR/JSON');}
  const d=await post('/api/har',{name:f.name.replace(/\\.har$/i,''),har});
