@@ -12,3 +12,5 @@ data-leak/.toollog-offset
 garak-runs/
 ai-scan-*.json
 app-targets/
+labs/dvla/
+labs/dvla-venv/
