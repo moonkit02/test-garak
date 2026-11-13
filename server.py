@@ -106,7 +106,6 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
  .seg label:has(input:checked){background:var(--muted);color:var(--fg)}
  .seg input{accent-color:var(--accent);margin:0}
  .sel input[type=number]{width:90px}
- .sel input#probes{width:320px;max-width:100%}
  .sel input[type=file]{padding:8px}
  .sel select:focus,.sel input:focus{outline:none;border-color:var(--border-hi)}
  .tabs{display:flex;gap:8px;margin:0 0 8px}
@@ -185,7 +184,10 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
     <label class=sel for=garak>Scan type<select id=garak onchange=modeChange()>
      <option value=1>Full scan: data access + attack prompts</option>
      <option value=0>Data access quick check (no attack prompts)</option></select></label>
-    <label class=sel for=probes id=probesbox>Attack probes (garak)<input id=probes></label>
+    <label class=sel for=probes id=probesbox>Attack probes (garak)<select id=probes>
+     <option value="__PROBES__">Prompt injection (default)</option>
+     <option value="agent_breaker">Agent tool misuse (agent_breaker, uses the .env LLM)</option>
+     <option value="__PROBES__,agent_breaker">Both</option></select></label>
     <label class=sel for=cap id=capbox>Prompts / probe<input id=cap type=number value=5 min=1 max=50></label>
     <label class=sel for=repeats>Repeats<input id=repeats type=number value=20 min=1 max=30></label>
    </div>
@@ -221,7 +223,6 @@ PAGE = """<!doctype html><html lang=en><head><meta charset=utf-8>
 const ORDER={confirmed:0,likely:1,suspected:2,refused:3};
 const KIND={confirmed:'fail',likely:'fail',suspected:'err',refused:'pass'};
 let JOB=null;
-byId('probes').value='__PROBES__';
 
 async function loadConfigs(pick){
  const d=await (await fetch('/api/configs')).json();

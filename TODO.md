@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] DVLA agent miss: try garak `agent_breaker.AgentBreaker` (off by default, needs a red-team + judge model; point both at our `.env` gateway, not NIM). Pass = `GetUserTransactions` called with a non-'1' id in the :8200 `[tool]` log. Old logs: 96/96 calls used '1'
+- [ ] DVLA agent miss: garak `agent_breaker.AgentBreaker` is wired to our `.env` gateway (commit 1c3093f, wiring checked, not yet run on a target). User runs it from the UI on `dvla-target.json`. Pass = `GetUserTransactions` called with a non-'1' id in the :8200 `[tool]` log. Old logs: 96/96 calls used '1'
 - [ ] Empty replies in latentinjection: log prompt length and the raw model response in bank-bot to find the cause
 - [ ] Endpoint shapes: session bootstrap, cookie session + CSRF, WebSocket (add a mock endpoint for each)
 - [ ] Optional LLM judge for the `refused` bucket, using the customer's own LLM endpoint
